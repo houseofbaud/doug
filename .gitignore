@@ -1,0 +1,6 @@
+openai-models.json
+.langchain.db
+.env
+*.swp
+.DS_Util
+**__pycache__
