@@ -1,5 +1,4 @@
-## main.py
-## This is a ChatGPT tool called "Doug"
+## main.py - this is a ChatGPT tool called "Doug"
 # Doug is here to guide you. Please do not fear Doug. Doug is your friend.
 # Doug always refers to themselves in third person.
 
