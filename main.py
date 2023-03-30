@@ -35,11 +35,11 @@ if environ.get("OPENAI_API_KEY") is None:
     print("ERROR: OpenAI API Key is not set")
     exit(1)
 
+# to get a list of models, run utils/get-openai-models.py
 if dougLLMModel is None:
     print("WARN: OPENAI_LLM_MODEL not set, defaulting to 'gpt-3.5-turbo-0301'")
     dougLLMModel="gpt-3.5-turbo-0301"
 
-# to get a list of models, run utils/get-openai-models.py
 # temperature adjusts the 'randomness', with values closer to 0.0 intended to make the output more reproduceable
 dougLLM = ChatOpenAI(model_name=dougLLMModel, temperature=0.4)
 
