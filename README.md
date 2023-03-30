@@ -49,6 +49,9 @@ Doug has the following features:
 - Uses CombinedMemory with ConversationBufferMemory and ConversationSummaryMemory for a more natural experience
 - Swapable prompts! Customize Doug in any way you see fit. Check out `data/prompt` and add your own!
 
+## Example Directory
+Included is an `examples/` directory with example output from Doug. This output is unmodified outside of being snipped down to just the code blocks being output by Doug. More examples will be added as time goes on.
+
 ## Contributing
 
 If you'd like to contribute to Doug, simply fork the repository and submit a pull request with your changes.
