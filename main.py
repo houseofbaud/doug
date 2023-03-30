@@ -49,7 +49,7 @@ dougSummaryMemory = ConversationSummaryMemory(llm=dougLLM, input_key="input")
 
 dougMainMemory = CombinedMemory(memories=[dougWorkingMemory, dougSummaryMemory])
 
-# TODO: load saved prompt from 'yaml' files
+# TODO: load saved prompt from 'yaml' file
 dougPrompt = Path('./data/prompt/doug-v1.prompt').read_text()
 
 try:
