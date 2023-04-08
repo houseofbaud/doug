@@ -5,7 +5,7 @@
 import pdb
 
 from os import environ
-from sys import exit
+from sys import exit, path
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -23,6 +23,12 @@ langchain.llm_cache = SQLiteCache(database_path=".langchain.db")
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory, CombinedMemory, ConversationSummaryMemory
 
+## Custom Module Path Injection
+# inject our module path so we can resolve 'import' statements later
+path.insert(0, './data/modules')
+
+## Custom Modules
+from PdfLoader import pdfLoader
 
 ## Initialization #############################################################
 # load our .env file, which has our OPENAI_API_KEY
@@ -63,6 +69,8 @@ except:
 
 dougChain = ConversationChain(llm=dougLLM, memory=dougMainMemory, prompt=dougTemplate)
 
+dougPdf = pdfLoader()
+
 ###############################################################################
 print("   - - - - - - - - DOUG V1.0 : AI ASSISTANT - - - - - - - -")
 print(" [ commands: .quit - exit this cli app, .debug - pdb console ] ")
@@ -77,6 +85,9 @@ while True:
         if userInquiry == ".debug":
             pdb.set_trace()
             continue
+
+        if userInquiry == ".pdf":
+            pass
 
         try:
             result = dougChain.run(input=userInquiry)
