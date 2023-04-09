@@ -1,20 +1,24 @@
 import os, magic
-#from langchain.document_loaders import PyPDFLoader
-from langchain.document_loaders import PyMuPDFLoader
 
+from langchain.document_loaders import PyMuPDFLoader
+from langchain.text_splitter import CharacterTextSplitter
 
 class pdfLoader:
-    pdfFilePaths = []
-    dataIndex = []
+    pdfFilePaths    = []
+    documentIndex   = []
 
-    def __init__(self, path=None, recurse=False, symlinks=True):
+    def __init__(self, persistdb=None, path=None, recurse=True, symlinks=True):
         self.path       = path
         self.recurse    = recurse    # if path is a directory, whether or not to recurse into subdirectories
         self.symlinks   = symlinks   # changes whether or not we resolve symlinks
+        self.persistdb  = persistdb  # persistent memory store, for now Chroma/DuckDB
 
         print("pdfLoader_init(): successfully initialized pdfLoader class")
 
     def queueFile(self, filePath=None):
+        if filePath is None:
+            filePath = self.path
+
         if self.symlinks:
             filePath = os.path.realpath(filePath)
 
@@ -30,7 +34,10 @@ class pdfLoader:
 
         return True
 
-    def processDirectory(self, dirPath=None):
+    def queueDirectory(self, dirPath=None):
+        if dirPath is None:
+            dirPath = self.path
+
         for file in os.listdir(dirPath):
             filePath = os.path.join((dirPath), file)
 
@@ -39,24 +46,24 @@ class pdfLoader:
 
             if os.path.isdir(filePath):
                 if self.recurse:
-                    self.processDirectory(filePath)
+                    self.queueDirectory(filePath)
                 else:
-                    print("pdfLoader_processDirectory: skipping directory " + filePath)
+                    print("pdfLoader_queueDirectory: skipping directory " + filePath)
 
         return True
 
-    def process(self, processPath=None):
+    def addPathToQueue(self, processPath=None):
         ret = False
 
         if processPath is None:
-            print("pdfLoader_process(): invalid path or path not set - unable to continue")
+            print("pdfLoader_addToQueue(): invalid path or path not set - unable to continue")
             return False
 
         if os.path.isfile(processPath):
             ret = self.queueFile(processPath)
 
         if os.path.isdir(processPath):
-            ret = self.processDirectory(processPath)
+            ret = self.queueDirectory(processPath)
 
         return ret
 
@@ -66,16 +73,28 @@ class pdfLoader:
             return False
 
         for file in self.pdfFilePaths:
+            print("pdfLoader_processQueue: processing " + file)
             try:
                 loader = PyMuPDFLoader(file)
                 data = loader.load()
 
-                self.dataIndex.extend(data)
+                self.persistdb.add_documents(data)
                 
             except Exception as error:
-                print("pdfLoader_processQueue: " + file + ":" + str(error))
-                pass
+                print("  ~> " + file + ": " + str(error))
+                continue
 
         return True
 
+    def emptyQueue(self):
+        self.dataIndex = []
+        self.pdfFilePaths = []
+        print("pdfLoader_emptyQueue: emptied queue")
+        return
+
+    def storeQueue(self):
+        if self.documentIndex is []:
+            print("pdfLoader_storeQueue: no documents loaded into index - run processQueue() first")
+            return False
+        self.persistdb.persist()
 

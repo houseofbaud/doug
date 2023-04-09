@@ -4,3 +4,4 @@ openai-models.json
 *.swp
 .DS_Util
 **__pycache__
+data/db/*
