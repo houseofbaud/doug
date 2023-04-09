@@ -5,7 +5,7 @@
 import pdb
 
 from os import environ
-from sys import exit
+from sys import exit, path
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -23,6 +23,16 @@ langchain.llm_cache = SQLiteCache(database_path=".langchain.db")
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory, CombinedMemory, ConversationSummaryMemory
 
+from langchain.vectorstores import Chroma
+
+from langchain.embeddings.openai import OpenAIEmbeddings
+
+## Custom Module Path Injection
+# inject our module path so we can resolve 'import' statements later
+path.insert(0, './data/modules')
+
+## Custom Modules
+from PdfLoader import pdfLoader
 
 ## Initialization #############################################################
 # load our .env file, which has our OPENAI_API_KEY
@@ -46,6 +56,9 @@ dougLLM = ChatOpenAI(model_name=dougLLMModel, temperature=0.4)
 dougWorkingMemory = ConversationBufferMemory(memory_key="history", input_key="input")
 dougSummaryMemory = ConversationSummaryMemory(llm=dougLLM, input_key="input")
 
+dougPersistentMemory = 'data/db'
+dougEmbedding = OpenAIEmbeddings()
+
 dougMainMemory = CombinedMemory(memories=[dougWorkingMemory, dougSummaryMemory])
 
 # TODO: load saved prompt from 'yaml' file
@@ -62,6 +75,7 @@ except:
     exit(1)
 
 dougChain = ConversationChain(llm=dougLLM, memory=dougMainMemory, prompt=dougTemplate)
+dougDB = Chroma(persist_directory=dougPersistentMemory, embedding_function=dougEmbedding)
 
 ###############################################################################
 print("   - - - - - - - - DOUG V1.0 : AI ASSISTANT - - - - - - - -")
@@ -71,13 +85,33 @@ while True:
     userInquiry = input('\n: ')
 
     if userInquiry:
-        if userInquiry == ".exit" or userInquiry == ".quit":
+        cmd = userInquiry.split()[0]
+
+        if cmd == ".exit" or cmd == ".quit":
+            dougDB.persist()
             exit(0)
 
-        if userInquiry == ".debug":
+        if cmd == ".debug":
             pdb.set_trace()
             continue
 
+        if cmd == ".pdf":
+            if len(userInquiry.split()) > 1:
+                try:
+                    arg = " ".join(userInquiry.split()[1:])
+                    dougPdf = pdfLoader(persistdb=dougDB, path=arg)
+
+                    dougPdf.addPathToQueue(arg)
+                    dougPdf.processQueue()
+                    dougPdf.storeQueue()
+
+                except Exception as error:
+                    print("-> " + str(error))
+
+            else:
+                print("-> pdf command requires one path argument")
+
+            continue
         try:
             result = dougChain.run(input=userInquiry)
             if result:
