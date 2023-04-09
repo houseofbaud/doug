@@ -3,15 +3,18 @@ import os, magic
 from langchain.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import CharacterTextSplitter
 
+from signal import SIGINT
+
 class pdfLoader:
     pdfFilePaths    = []
     documentIndex   = []
 
-    def __init__(self, persistdb=None, path=None, recurse=True, symlinks=True):
+    def __init__(self, persistdb=None, path=None, recurse=True, symlinks=True, signalHandler=None):
         self.path       = path
-        self.recurse    = recurse    # if path is a directory, whether or not to recurse into subdirectories
-        self.symlinks   = symlinks   # changes whether or not we resolve symlinks
-        self.persistdb  = persistdb  # persistent memory store, for now Chroma/DuckDB
+        self.recurse    = recurse       # if path is a directory, whether or not to recurse into subdirectories
+        self.symlinks   = symlinks      # changes whether or not we resolve symlinks
+        self.persistdb  = persistdb     # persistent memory store, for now Chroma/DuckDB
+        self.ossignal   = signalHandler # optional signalHandler from OS, to interrupt long processes gracefully
 
         print("pdfLoader_init(): successfully initialized pdfLoader class")
 
@@ -39,6 +42,11 @@ class pdfLoader:
             dirPath = self.path
 
         for file in os.listdir(dirPath):
+            if (self.ossignal != None) and (self.ossignal.get_last_signal() == SIGINT):
+                print("pdfLoader_queueDirectory: caught signal - exiting gracefully")
+                self.emptyQueue()
+                return True
+
             filePath = os.path.join((dirPath), file)
 
             if os.path.isfile(filePath):
@@ -73,12 +81,20 @@ class pdfLoader:
             return False
 
         for file in self.pdfFilePaths:
+            if (self.ossignal != None) and (self.ossignal.get_last_signal() == SIGINT):
+                print("pdfLoader_processQueue: caught signal - exiting gracefully")
+                self.emptyQueue()
+                return True
+
             print("pdfLoader_processQueue: processing " + file)
             try:
                 loader = PyMuPDFLoader(file)
-                data = loader.load()
+                data = loader.load_and_split()
 
-                self.persistdb.add_documents(data)
+                if data is not []:
+                    self.persistdb.add_documents(data)
+                else:
+                    print("  -> bad document, or document is all images - cannot process")
                 
             except Exception as error:
                 print("  ~> " + file + ": " + str(error))
