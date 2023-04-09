@@ -32,11 +32,16 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 path.insert(0, './data/modules')
 
 ## Custom Modules
-from PdfLoader import pdfLoader
+from SignalHandler  import signalHandler
+from PdfLoader      import pdfLoader
+
+print("   - - - - - - - - DOUG V1.0 : AI ASSISTANT - - - - - - - -\n")
 
 ## Initialization #############################################################
 # load our .env file, which has our OPENAI_API_KEY
 load_dotenv()
+
+osSignalHandler = signalHandler()
 
 dougLLMModel=environ.get("OPENAI_LLM_MODEL")
 
@@ -78,10 +83,12 @@ dougChain = ConversationChain(llm=dougLLM, memory=dougMainMemory, prompt=dougTem
 dougDB = Chroma(persist_directory=dougPersistentMemory, embedding_function=dougEmbedding)
 
 ###############################################################################
-print("   - - - - - - - - DOUG V1.0 : AI ASSISTANT - - - - - - - -")
-print(" [ commands: .quit - exit this cli app, .debug - pdb console ] ")
+print("\n [ commands: .quit - exit this cli app, .debug - pdb console ] ")
+
+documents = None
 
 while True:
+    osSignalHandler.reset_signal()
     userInquiry = input('\n: ')
 
     if userInquiry:
@@ -99,19 +106,59 @@ while True:
             if len(userInquiry.split()) > 1:
                 try:
                     arg = " ".join(userInquiry.split()[1:])
-                    dougPdf = pdfLoader(persistdb=dougDB, path=arg)
+                    dougPdf = pdfLoader(persistdb=dougDB, path=arg, signalHandler=osSignalHandler)
 
                     dougPdf.addPathToQueue(arg)
                     dougPdf.processQueue()
                     dougPdf.storeQueue()
 
                 except Exception as error:
-                    print("-> " + str(error))
+                    print("  ~> " + str(error))
 
             else:
                 print("-> pdf command requires one path argument")
 
             continue
+
+        if cmd == ".search":
+            if len(userInquiry.split()) > 1:
+                try:
+                    query = " ".join(userInquiry.split()[1:])
+                    retriever = dougDB.as_retriever(search_type="mmr")
+
+                    documents = retriever.get_relevant_documents(query)
+                    print("-> returned " + str(len(documents)) + " documents")
+
+                except Exception as error:
+                    print("  ~> " + str(error))
+            else:
+                print("-> search command requires something to search for")
+
+            continue
+
+        if cmd == ".docs":
+            try:
+                docsAvailable = len(documents)
+                if docsAvailable < 1:
+                    print("-> no documents found, try searching first")
+                    continue
+
+                if len(userInquiry.split()) > 1:
+                    arg = int(userInquiry.split()[1])
+                    if arg > docsAvailable:
+                        print("-> index out of range")
+                        continue
+                    else:
+                        print(documents[arg])
+                else:
+                    print("-> " + str(docsAvailable) + " documents available")
+
+            except Exception as error:
+                print("  ~> " + str(error))
+
+            continue
+
+        ## Main LLM Block - reach out to LLM with inquiry
         try:
             result = dougChain.run(input=userInquiry)
             if result:
