@@ -14,18 +14,20 @@ import langchain
 
 from langchain import PromptTemplate
 
-# Use OpenAI LLM
+# Choose the LLM we want to use
 from langchain.chat_models import ChatOpenAI
 
 from langchain.cache import SQLiteCache
 langchain.llm_cache = SQLiteCache(database_path=".langchain.db")
 
 from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory, CombinedMemory, ConversationSummaryMemory
+from langchain.memory import \
+    ConversationBufferMemory, ConversationBufferWindowMemory, CombinedMemory, ConversationSummaryMemory
 
 from langchain.vectorstores import Chroma
 
-from langchain.embeddings.openai import OpenAIEmbeddings
+#from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.embeddings import LlamaCppEmbeddings
 
 ## Custom Module Path Injection
 # inject our module path so we can resolve 'import' statements later
@@ -58,11 +60,11 @@ if dougLLMModel is None:
 dougLLM = ChatOpenAI(model_name=dougLLMModel, temperature=0.4)
 
 # initialize our chat message memory for our interactive chat session
-dougWorkingMemory = ConversationBufferMemory(memory_key="history", input_key="input")
+dougWorkingMemory = ConversationBufferWindowMemory(memory_key="history", input_key="input", k=2)
 dougSummaryMemory = ConversationSummaryMemory(llm=dougLLM, input_key="input")
 
 dougPersistentMemory = 'data/db'
-dougEmbedding = OpenAIEmbeddings()
+dougEmbedding = LlamaCppEmbeddings(model_path="data/models/gpt4all-lora-quantized-new.bin")
 
 dougMainMemory = CombinedMemory(memories=[dougWorkingMemory, dougSummaryMemory])
 
