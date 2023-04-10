@@ -1,7 +1,9 @@
 import os, magic
 
 from langchain.document_loaders import PyMuPDFLoader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.docstore.document import Document
+
+from langchain.text_splitter import CharacterTextSplitter, NLTKTextSplitter
 
 from signal import SIGINT
 
@@ -89,10 +91,16 @@ class pdfLoader:
             print("pdfLoader_processQueue: processing " + file)
             try:
                 loader = PyMuPDFLoader(file)
-                data = loader.load_and_split()
+                data = loader.load()
 
                 if data is not []:
-                    self.persistdb.add_documents(data)
+                    dataChunks = []
+                    dataSplitter = NLTKTextSplitter(chunk_size=512)
+                    for page in data:
+                        for chunk in dataSplitter.split_text(page.page_content):
+                            dataChunks.append(Document(page_content=chunk, metadata=page.metadata))
+
+                    self.persistdb.add_documents(dataChunks)
                 else:
                     print("  -> bad document, or document is all images - cannot process")
                 
