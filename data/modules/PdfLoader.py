@@ -1,8 +1,7 @@
 import os, magic
 
-from langchain.document_loaders import PyMuPDFLoader
 from langchain.docstore.document import Document
-
+from langchain.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import CharacterTextSplitter, NLTKTextSplitter
 
 from signal import SIGINT
