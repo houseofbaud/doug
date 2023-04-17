@@ -94,7 +94,7 @@ class pdfLoader:
 
                 if data is not []:
                     dataChunks = []
-                    dataSplitter = NLTKTextSplitter(chunk_size=512)
+                    dataSplitter = NLTKTextSplitter(chunk_size=768)
                     for page in data:
                         for chunk in dataSplitter.split_text(page.page_content):
                             dataChunks.append(Document(page_content=chunk, metadata=page.metadata))
