@@ -60,3 +60,8 @@ If you'd like to contribute to Doug, simply fork the repository and submit a pul
 ## License
 
 Doug is licensed under the MIT license. See LICENSE for more details.
+
+# NOTES
+- The .debug console is a great way to poke around inside the live runtime environment. I've left a few things
+  configurable only via the .debug console. Type `dir()` to poke around: dougLLM, dougChain, dougDB, dougEmbedding,
+  dougMainMemory, dougPersistentMemory, dougPrompt, dougSummaryMemory, dougTemplate, dougWorkingMemory
