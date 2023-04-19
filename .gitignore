@@ -5,3 +5,4 @@ openai-models.json
 .DS_Util
 **__pycache__
 data/db/*
+data/models/*

@@ -12,20 +12,19 @@ from pathlib import Path
 # Import the langchain core
 import langchain
 
-from langchain import PromptTemplate
+from langchain.callbacks.base import CallbackManager
+from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
-# Use OpenAI LLM
-from langchain.chat_models import ChatOpenAI
+from langchain import PromptTemplate, LLMChain
 
 from langchain.cache import SQLiteCache
 langchain.llm_cache = SQLiteCache(database_path=".langchain.db")
 
 from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory, CombinedMemory, ConversationSummaryMemory
+from langchain.memory import \
+    ConversationBufferMemory, ConversationBufferWindowMemory, CombinedMemory, ConversationSummaryBufferMemory
 
 from langchain.vectorstores import Chroma
-
-from langchain.embeddings.openai import OpenAIEmbeddings
 
 ## Custom Module Path Injection
 # inject our module path so we can resolve 'import' statements later
@@ -41,28 +40,53 @@ print("   - - - - - - - - DOUG V1.0 : AI ASSISTANT - - - - - - - -\n")
 # load our .env file, which has our OPENAI_API_KEY
 load_dotenv()
 
+USE_OPENAI=True
+USE_GPT4ALL=False
+USE_LLAMA=False
+
+# to get a list of models, run utils/get-openai-models.py
+dougOpenAIModel=environ.get("OPENAI_LLM_MODEL")
+if (dougOpenAIModel is None) and USE_OPENAI:
+    print("WARN: OPENAI_LLM_MODEL not set, defaulting to 'gpt-3.5-turbo-0301'")
+    dougOpenAIModel="gpt-3.5-turbo-0301"
+
+# Choose the LLM we want to use
+if USE_OPENAI:
+    print("INFO: Selected OpenAI as our LLM")
+    from langchain.chat_models import ChatOpenAI
+    from langchain.callbacks import get_openai_callback
+    from langchain.embeddings.openai import OpenAIEmbeddings
+    dougLLM = ChatOpenAI(model_name=dougOpenAIModel, temperature=0.4)
+    dougEmbedding = OpenAIEmbeddings(model_name="ada")
+elif USE_GPT4ALL:
+    print("INFO: Selected GPT4All as our LLM")
+    llmLocalPath="./data/models/gpt4all-lora-quantized-new.bin"
+    from langchain.llms import GPT4All
+    from langchain.embeddings import LlamaCppEmbeddings
+    callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
+    dougLLM = GPT4All(model=llmLocalPath, f16_kv=False, n_ctx=512, use_mlock=True, \
+        n_threads=8, n_predict=1000, temp=0.1, callback_manager=callback_manager, verbose=False)
+    dougEmbedding = LlamaCppEmbeddings(model_path="data/models/gpt4all-lora-quantized-new.bin")
+elif USE_LLAMA:
+    print("INFO: Selected llama.cpp as our LLM")
+    llmLocalPath="./data/models/gpt4all-lora-quantized-new.bin"
+    from langchain.llms import LlamaCpp
+    from langchain.embeddings import LlamaCppEmbeddings
+    dougLLM = LlamaCpp(model_path=llmLocalPath, temperature=0.7)
+    dougEmbedding = LlamaCppEmbeddings(model_path="data/models/gpt4all-lora-quantized-new.bin")
+else:
+    print("ERROR: No LLM enabled. Please set one of USE_OPENAI, USE_GPT4ALL, or USE_LLAMA to 'True'")
+    exit(1)
+
 osSignalHandler = signalHandler()
 
-dougLLMModel=environ.get("OPENAI_LLM_MODEL")
-
-if environ.get("OPENAI_API_KEY") is None:
+if (environ.get("OPENAI_API_KEY") is None) and USE_OPENAI:
     print("ERROR: OpenAI API Key is not set")
     exit(1)
 
-# to get a list of models, run utils/get-openai-models.py
-if dougLLMModel is None:
-    print("WARN: OPENAI_LLM_MODEL not set, defaulting to 'gpt-3.5-turbo-0301'")
-    dougLLMModel="gpt-3.5-turbo-0301"
-
-# temperature adjusts the 'randomness', with values closer to 0.0 intended to make the output more reproduceable
-dougLLM = ChatOpenAI(model_name=dougLLMModel, temperature=0.4)
-
 # initialize our chat message memory for our interactive chat session
-dougWorkingMemory = ConversationBufferMemory(memory_key="history", input_key="input")
-dougSummaryMemory = ConversationSummaryMemory(llm=dougLLM, input_key="input")
-
-dougPersistentMemory = 'data/db'
-dougEmbedding = OpenAIEmbeddings()
+dougWorkingMemory = ConversationBufferWindowMemory(memory_key="history", input_key="input", k=10)
+dougSummaryMemory = ConversationSummaryBufferMemory(llm=dougLLM, input_key="input")
 
 dougMainMemory = CombinedMemory(memories=[dougWorkingMemory, dougSummaryMemory])
 
@@ -80,12 +104,15 @@ except:
     exit(1)
 
 dougChain = ConversationChain(llm=dougLLM, memory=dougMainMemory, prompt=dougTemplate)
+
+dougPersistentMemory = './data/db'
 dougDB = Chroma(persist_directory=dougPersistentMemory, embedding_function=dougEmbedding)
 
 ###############################################################################
 print("\n [ commands: .quit - exit this cli app, .debug - pdb console ] ")
 
 documents = None
+totalCost = 0
 
 while True:
     osSignalHandler.reset_signal()
@@ -100,6 +127,13 @@ while True:
 
         if cmd == ".debug":
             pdb.set_trace()
+            continue
+
+        if cmd == ".$$$":
+            if USE_OPENAI:
+                print("-> $" + str(totalCost))
+            else:
+                print("-> Using a local LLM, the only cost is your compute")
             continue
 
         if cmd == ".pdf":
@@ -160,11 +194,18 @@ while True:
 
         ## Main LLM Block - reach out to LLM with inquiry
         try:
-            result = dougChain.run(input=userInquiry)
+            if USE_OPENAI:
+                with get_openai_callback() as callBack:
+                    result = dougChain.run(input=userInquiry)
+                    totalCost += round(callBack.total_cost, 5)
+                    print("[" + str(round(callBack.total_cost, 5)) + "] ", end="")
+            else:
+                result = dougChain.run(input=userInquiry)
+
             if result:
                 print(result)
             else:
                 print("ERROR: LLM did not respond")
-        except:
-            print("ERROR: error during run(), bailing until we write proper error recovery")
-            exit(1)
+        except Exception as error:
+            print("ERROR: " + str(error))
+            continue
