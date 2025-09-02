@@ -131,7 +131,7 @@ while True:
 
         if cmd == ".$$$":
             if USE_OPENAI:
-                print("-> $" + str(totalCost))
+                print("-> $" + str(round(totalCost, 2)))
             else:
                 print("-> Using a local LLM, the only cost is your compute")
             continue
